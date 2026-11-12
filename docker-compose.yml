@@ -1,0 +1,40 @@
+services:
+  # Servicio 1: la aplicación web (PHP + Apache)
+  app:
+    build: .                      # Construye la imagen usando el Dockerfile de esta carpeta
+    container_name: php-app
+    ports:
+      - "8080:80"                 # Puerto 8080 de tu PC -> puerto 80 del contenedor
+    volumes:
+      - ./src:/var/www/html       # Si editas src/, el cambio se ve sin reconstruir
+    environment:                  # Datos de conexión (se leen del archivo .env)
+      DB_HOST: db                 # "db" es el NOMBRE del servicio de abajo
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy   # Espera a que MySQL esté listo de verdad
+    restart: unless-stopped
+
+  # Servicio 2: la base de datos MySQL
+  db:
+    image: mysql:8.4              # Imagen oficial de Docker Hub (sin Dockerfile propio)
+    container_name: mysql-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql                              # Guarda los datos aunque borres el contenedor
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql  # Crea la tabla la primera vez
+    healthcheck:                  # Docker pregunta "¿estás vivo?" cada 10 segundos
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  db_data:
